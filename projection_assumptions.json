@@ -1,0 +1,54 @@
+{
+  "_read_this": "Everything under assumptions is a MODEL INPUT, not measured product data. Replace with soft-launch / post-launch actuals when you have them. Do not present outputs as 'current performance' unless source=measured.",
+  "meta": {
+    "as_of_date": "YYYY-MM-DD",
+    "horizon_months": 12,
+    "currency": "USD",
+    "source": "assumption | soft_launch_measured | post_launch_measured"
+  },
+  "assumptions": {
+    "month0_starting_registered_users": null,
+    "month1_new_signups": null,
+    "monthly_signup_growth_rate": null,
+
+    "activation_rate_first_focus_24h": null,
+    "d1_retention": null,
+    "d7_retention": null,
+    "d30_retention": null,
+    "month2_plus_retention_of_prior_mau": null,
+
+    "focus_sessions_per_wau_per_week": null,
+    "focus_completion_rate": null,
+    "avg_focus_minutes": null,
+    "wau_to_mau_ratio": null,
+
+    "guest_to_registered_rate": null,
+    "referral_share_of_signups": null,
+    "viral_k_factor": null,
+
+    "paid_launch_month": null,
+    "free_to_paid_conversion_rate": null,
+    "monthly_price_usd": null,
+    "paid_monthly_churn": null,
+
+    "cac_usd": null,
+    "monthly_marketing_spend_usd": null
+  },
+  "scenario_multipliers": {
+    "conservative": {
+      "monthly_signup_growth_rate": 0.7,
+      "d7_retention": 0.8,
+      "free_to_paid_conversion_rate": 0.7
+    },
+    "base": {
+      "monthly_signup_growth_rate": 1.0,
+      "d7_retention": 1.0,
+      "free_to_paid_conversion_rate": 1.0
+    },
+    "optimistic": {
+      "monthly_signup_growth_rate": 1.3,
+      "d7_retention": 1.2,
+      "free_to_paid_conversion_rate": 1.4
+    }
+  }
+}

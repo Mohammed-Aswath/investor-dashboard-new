@@ -1,0 +1,57 @@
+{
+  "_instructions": "Fill ONLY verified counts from Supabase SQL (extract_kpis.sql) or store consoles. Leave null if unknown. Do not invent. Then run: python3 compute_investor_kpis.py inputs.json",
+  "as_of_date": "YYYY-MM-DD",
+  "window_days": 30,
+  "source": "supabase_prod | testflight | unknown",
+  "notes": "",
+
+  "counts": {
+    "total_profiles": null,
+    "registered_users": null,
+    "guest_users": null,
+    "deleted_users": null,
+    "onboarded_users": null,
+    "signups_in_window": null,
+    "guests_in_window": null,
+    "referred_signups_in_window": null,
+
+    "dau": null,
+    "wau": null,
+    "mau": null,
+
+    "cohort_size_d1": null,
+    "retained_d1": null,
+    "cohort_size_d7": null,
+    "retained_d7": null,
+    "cohort_size_d30": null,
+    "retained_d30": null,
+
+    "new_registered_in_window": null,
+    "activated_first_focus_24h": null,
+    "guests_completed_focus": null,
+    "guests_converted_after_focus": null,
+
+    "focus_sessions_started": null,
+    "focus_sessions_completed": null,
+    "focus_minutes_total": null,
+    "tasks_created": null,
+    "tasks_completed": null,
+    "ada_sessions": null,
+    "ada_user_messages": null,
+    "ada_plan_items_suggested": null,
+    "ada_plan_items_applied": null,
+    "mood_checkins": null,
+    "referral_redemptions": null,
+
+    "app_store_downloads": null,
+    "play_store_downloads": null,
+    "app_store_rating": null,
+    "app_store_ratings_count": null,
+    "play_store_rating": null,
+    "play_store_ratings_count": null,
+
+    "pro_interest_signups": null,
+    "mrr_usd": null,
+    "paying_customers": null
+  }
+}

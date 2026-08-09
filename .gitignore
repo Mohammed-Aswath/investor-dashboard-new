@@ -1,0 +1,10 @@
+.env
+.env.local
+.DS_Store
+node_modules/
+dashboard/node_modules/
+dashboard/.next/
+dashboard/out/
+*.log
+report.last.json
+projection.report.json

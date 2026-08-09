@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #f4f3f0;
+  --foreground: #14130f;
+  --aq-paper: #f4f3f0;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  color: var(--foreground);
+  background:
+    radial-gradient(720px 420px at 50% -8%, rgba(107, 92, 240, 0.12), transparent 60%),
+    radial-gradient(520px 280px at 85% 12%, rgba(159, 214, 239, 0.16), transparent 55%),
+    var(--aq-paper);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(107, 92, 240, 0.25);
+}
