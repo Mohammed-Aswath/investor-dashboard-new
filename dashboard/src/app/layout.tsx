@@ -21,8 +21,8 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Aqademiq · Investor Report",
-  description: "Live investor health report from the Aqademiq product database.",
+  title: "Prism Proof Desk",
+  description: "See whether we can prove Prism helps students study — checklist, study results, research questions.",
   icons: {
     icon: "/logo.png",
     apple: "/logo.png",

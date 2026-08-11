@@ -1,7 +1,33 @@
 export type NullableNumber = number | null;
 
+export type ReadinessStatus = "green" | "amber" | "red";
+
+export type ReadinessCheck = {
+  id: string;
+  label: string;
+  status: ReadinessStatus;
+  /** One-line: what broke / what’s missing (root cause) */
+  rootCause: string;
+  /** One-line proof from the DB (numbers) */
+  proof: string;
+  /** One-line fix */
+  fix: string;
+  /** 1 = fix first */
+  priority: number;
+};
+
+export type HypothesisStatus = "testable" | "weak" | "blocked";
+
+export type Hypothesis = {
+  id: string;
+  claim: string;
+  status: HypothesisStatus;
+  detail: string;
+  evidence: Record<string, number | null>;
+};
+
 export type DayPoint = {
-  day: string; // YYYY-MM-DD
+  day: string;
   value: number;
 };
 
@@ -10,70 +36,44 @@ export type MetricsPayload = {
     asOf: string;
     windowDays: number;
     source: string;
-    preRelease: boolean;
+    vertical: "prism";
     error: string | null;
   };
-  growth: {
-    registeredUsers: number;
-    guestUsers: number;
-    onboardedUsers: number;
-    onboardingRate: NullableNumber;
-    signupsInWindow: number;
-    guestsInWindow: number;
-    referredSignupsInWindow: number;
-    referralShare: NullableNumber;
+  readiness: {
+    checks: ReadinessCheck[];
+    summary: {
+      green: number;
+      amber: number;
+      red: number;
+    };
   };
-  activity: {
-    dau: number;
-    wau: number;
-    mau: number;
-    mauBehaviorFallback: number;
-    mauSource: "daily_activity_snapshots" | "behavior_fallback";
-    stickinessDauMau: NullableNumber;
-    stickinessWauMau: NullableNumber;
+  outcomes: {
+    sessionsStarted: number;
+    sessionsCompleted: number;
+    timerFinishRate: NullableNumber;
+    validEfmSessions: number;
+    totalEfm: number;
+    meanEfmPerValidSession: NullableNumber;
+    padCount: number;
+    padUsers: number;
+    prismOnSessions: number;
+    prismOffSessions: number;
+    prismOnValidEfm: number;
+    prismOffValidEfm: number;
+    meanEfmPrismOn: NullableNumber;
+    meanEfmPrismOff: NullableNumber;
+    endedAtFilledPct: NullableNumber;
+    prismPresetCoveragePct: NullableNumber;
+    vasReached: number;
+    vasEligible: number;
+    vasRate: NullableNumber;
+    instrumentationNote: string;
+    series: {
+      efmDaily: DayPoint[];
+      padDaily: DayPoint[];
+    };
   };
-  retention: {
-    d1: NullableNumber;
-    d1CohortSize: number;
-    d7: NullableNumber;
-    d7CohortSize: number;
-    d30: NullableNumber;
-    d30CohortSize: number;
-  };
-  activation: {
-    newRegisteredInWindow: number;
-    activatedFirstFocus24h: number;
-    firstFocus24hRate: NullableNumber;
-    guestsCompletedFocusStillGuest: number;
-    registeredWithCompletedFocus: number;
-  };
-  engagement: {
-    focusSessionsStarted: number;
-    focusSessionsCompleted: number;
-    focusCompletionRate: NullableNumber;
-    focusMinutesTotal: number;
-    tasksCreated: number;
-    tasksCompleted: number;
-    adaSessions: number;
-    adaUserMessages: number;
-    adaPlanItemsSuggested: number;
-    adaPlanItemsApplied: number;
-    adaPlanApplyRate: NullableNumber;
-    moodCheckins: number;
-    referralRedemptions: number;
-  };
-  monetization: {
-    status: "pre-revenue";
-    mrrUsd: null;
-    payingCustomers: null;
-    arpuUsd: null;
-  };
-  series: {
-    signupsDaily: DayPoint[];
-    activeUsersDaily: DayPoint[];
-    focusMinutesDaily: DayPoint[];
-    tasksCompletedDaily: DayPoint[];
-  };
+  hypotheses: Hypothesis[];
 };
 
 export function pct(
@@ -90,69 +90,36 @@ export function emptyMetrics(error: string | null): MetricsPayload {
       asOf: new Date().toISOString(),
       windowDays: 30,
       source: "unavailable",
-      preRelease: true,
+      vertical: "prism",
       error,
     },
-    growth: {
-      registeredUsers: 0,
-      guestUsers: 0,
-      onboardedUsers: 0,
-      onboardingRate: null,
-      signupsInWindow: 0,
-      guestsInWindow: 0,
-      referredSignupsInWindow: 0,
-      referralShare: null,
+    readiness: {
+      checks: [],
+      summary: { green: 0, amber: 0, red: 0 },
     },
-    activity: {
-      dau: 0,
-      wau: 0,
-      mau: 0,
-      mauBehaviorFallback: 0,
-      mauSource: "daily_activity_snapshots",
-      stickinessDauMau: null,
-      stickinessWauMau: null,
+    outcomes: {
+      sessionsStarted: 0,
+      sessionsCompleted: 0,
+      timerFinishRate: null,
+      validEfmSessions: 0,
+      totalEfm: 0,
+      meanEfmPerValidSession: null,
+      padCount: 0,
+      padUsers: 0,
+      prismOnSessions: 0,
+      prismOffSessions: 0,
+      prismOnValidEfm: 0,
+      prismOffValidEfm: 0,
+      meanEfmPrismOn: null,
+      meanEfmPrismOff: null,
+      endedAtFilledPct: null,
+      prismPresetCoveragePct: null,
+      vasReached: 0,
+      vasEligible: 0,
+      vasRate: null,
+      instrumentationNote: "",
+      series: { efmDaily: [], padDaily: [] },
     },
-    retention: {
-      d1: null,
-      d1CohortSize: 0,
-      d7: null,
-      d7CohortSize: 0,
-      d30: null,
-      d30CohortSize: 0,
-    },
-    activation: {
-      newRegisteredInWindow: 0,
-      activatedFirstFocus24h: 0,
-      firstFocus24hRate: null,
-      guestsCompletedFocusStillGuest: 0,
-      registeredWithCompletedFocus: 0,
-    },
-    engagement: {
-      focusSessionsStarted: 0,
-      focusSessionsCompleted: 0,
-      focusCompletionRate: null,
-      focusMinutesTotal: 0,
-      tasksCreated: 0,
-      tasksCompleted: 0,
-      adaSessions: 0,
-      adaUserMessages: 0,
-      adaPlanItemsSuggested: 0,
-      adaPlanItemsApplied: 0,
-      adaPlanApplyRate: null,
-      moodCheckins: 0,
-      referralRedemptions: 0,
-    },
-    monetization: {
-      status: "pre-revenue",
-      mrrUsd: null,
-      payingCustomers: null,
-      arpuUsd: null,
-    },
-    series: {
-      signupsDaily: [],
-      activeUsersDaily: [],
-      focusMinutesDaily: [],
-      tasksCompletedDaily: [],
-    },
+    hypotheses: [],
   };
 }

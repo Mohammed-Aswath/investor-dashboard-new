@@ -39,11 +39,13 @@ export function LoginForm() {
       <div className="animate-rise w-full max-w-md rounded-[32px] border border-line bg-white/90 p-8 shadow-lift backdrop-blur">
         <BrandMark size={44} />
         <h1 className="mt-6 font-display text-4xl tracking-tight text-ink">
-          Investor access
+          Prism Proof Desk
         </h1>
         <p className="mt-3 text-sm font-medium leading-relaxed text-mist">
-          Password-gated health report. Metrics are read-only from production
-          Postgres.
+          Internal tool for the Aqademiq team. It shows whether we can prove
+          Prism helps students study, what study behavior we see in the live
+          database, and which research questions are still blocked. Not an
+          investor dashboard.
         </p>
 
         <form onSubmit={onSubmit} className="mt-8 space-y-4">
@@ -68,7 +70,7 @@ export function LoginForm() {
             disabled={pending}
             className="w-full rounded-full bg-ink px-4 py-3.5 text-sm font-extrabold text-white transition hover:opacity-90 disabled:opacity-60"
           >
-            {pending ? "Checking…" : "Open report"}
+            {pending ? "Checking…" : "Open Prism Proof Desk"}
           </button>
         </form>
       </div>

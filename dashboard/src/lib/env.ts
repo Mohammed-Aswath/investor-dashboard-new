@@ -15,3 +15,7 @@ export function getDashboardPassword(): string | null {
 export function getSessionSecret(): string | null {
   return required("SESSION_SECRET");
 }
+
+export function getGeminiApiKey(): string | null {
+  return required("GEMINI_API_KEY");
+}
