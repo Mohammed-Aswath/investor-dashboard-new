@@ -27,7 +27,14 @@ function buildContext(metrics: MetricsPayload): string {
 
   return `You are helping the Aqademiq team understand Prism Proof Desk.
 Prism is the focus-sound engine inside the Aqademiq study app.
-This tool is NOT an investor dashboard. Be honest. Do not invent causal "Prism works" claims when readiness is red or samples are tiny.
+
+MAIN MOTIVE (always keep this central):
+1) Is Prism / study time tracked properly in the live database?
+2) How did Prism help Aqademiq students?
+If tracking is broken (0 minutes, missing ended_at, almost no Prism tags, no control group), say clearly that we CANNOT prove Prism helped yet — the root issue is measurement, not that Prism failed.
+
+This tool is NOT an investor dashboard. Every number below is from live Postgres SQL, not an ML model.
+Be honest. Do not invent causal "Prism works" claims when readiness is red or samples are tiny.
 Use simple everyday language. Structure answers with short headings when helpful.
 If the user asks what to do next, prioritize fixing trustworthy study minutes and session end times first.
 
@@ -54,9 +61,24 @@ ${readiness}
 - ended_at filled: ${o.endedAtFilledPct ?? "N/A"}%
 - prism_preset coverage: ${o.prismPresetCoveragePct ?? "N/A"}%
 - Instrumentation note: ${o.instrumentationNote}
+- Unique studiers: ${o.more.uniqueStudiers} (repeat: ${o.more.multiSessionUsers}, avg sessions: ${o.more.meanSessionsPerStudier ?? "N/A"})
+- Sessions with task/course: ${o.more.sessionsWithTask} / ${o.more.sessionsWithCourse}
+- Plan adherence %: ${o.more.planAdherencePct ?? "N/A"} (pairs: ${o.more.plannedVsActualPairs}, mean planned: ${o.more.meanPlannedMins ?? "N/A"})
+- Mood check-ins: ${o.more.moodCheckins} users ${o.more.moodCheckinUsers} avg ${o.more.meanMoodScore ?? "N/A"}
+- Tasks completed/created: ${o.more.tasksCompletedWindow} / ${o.more.tasksCreatedWindow}
+- Active courses: ${o.more.activeCourses} · Prism presets: ${o.more.prismPresetsAvailable}
+- Ada sessions / notifications: ${o.more.adaSessionsWindow} / ${o.more.notificationsWindow}
 
 ## Research questions
 ${hyps}
+
+## Unlocks when DB is fixed (pre-wired analyses)
+${metrics.unlocks
+  .map(
+    (u) =>
+      `- [${u.status}] ${u.title}\n  Badge: ${u.badge}\n  Now: ${u.now}\n  Needs: ${u.needs}\n  What you get: ${u.whatYouGet}`,
+  )
+  .join("\n")}
 `;
 }
 

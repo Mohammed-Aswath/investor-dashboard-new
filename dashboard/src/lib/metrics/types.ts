@@ -26,6 +26,25 @@ export type Hypothesis = {
   evidence: Record<string, number | null>;
 };
 
+/** Analyses wired to live SQL — light up when DB tracking is fixed */
+export type UnlockStatus = "live" | "waiting" | "blocked";
+
+export type UnlockInsight = {
+  id: string;
+  title: string;
+  /** What Prism Proof Desk will show once unlocked */
+  whatYouGet: string;
+  /** What must be fixed in the product/DB */
+  needs: string;
+  status: UnlockStatus;
+  /** Short label for badge */
+  badge: string;
+  /** One-line truth from DB right now */
+  now: string;
+  /** Optional bar pairs for a mini chart (name/value) */
+  bars: Array<{ name: string; value: number }>;
+};
+
 export type DayPoint = {
   day: string;
   value: number;
@@ -68,12 +87,50 @@ export type MetricsPayload = {
     vasEligible: number;
     vasRate: NullableNumber;
     instrumentationNote: string;
+    /** Counts for “what’s missing” charts */
+    gaps: {
+      sessionsTotal: number;
+      completedUsableMins: number;
+      completedUnusableMins: number;
+      endedAtFilled: number;
+      endedAtMissing: number;
+      prismTagged: number;
+      prismUntagged: number;
+    };
     series: {
       efmDaily: DayPoint[];
       padDaily: DayPoint[];
+      sessionsStartedDaily: DayPoint[];
+      sessionsCompletedDaily: DayPoint[];
+      moodCheckinsDaily: DayPoint[];
+      tasksCompletedDaily: DayPoint[];
+      sessionsByWeekday: DayPoint[];
+    };
+    /** Extra live metrics from Aqademiq tables */
+    more: {
+      uniqueStudiers: number;
+      multiSessionUsers: number;
+      meanSessionsPerStudier: NullableNumber;
+      sessionsWithTask: number;
+      sessionsWithCourse: number;
+      meanPlannedMins: NullableNumber;
+      planAdherencePct: NullableNumber;
+      plannedVsActualPairs: number;
+      moodCheckins: number;
+      moodCheckinUsers: number;
+      meanMoodScore: NullableNumber;
+      sessionsWithMoodAfter: number;
+      tasksCompletedWindow: number;
+      tasksCreatedWindow: number;
+      activeCourses: number;
+      prismPresetsAvailable: number;
+      adaSessionsWindow: number;
+      notificationsWindow: number;
     };
   };
   hypotheses: Hypothesis[];
+  /** Pre-built “when DB is fixed” insights — already computing from SQL */
+  unlocks: UnlockInsight[];
 };
 
 export function pct(
@@ -118,8 +175,46 @@ export function emptyMetrics(error: string | null): MetricsPayload {
       vasEligible: 0,
       vasRate: null,
       instrumentationNote: "",
-      series: { efmDaily: [], padDaily: [] },
+      gaps: {
+        sessionsTotal: 0,
+        completedUsableMins: 0,
+        completedUnusableMins: 0,
+        endedAtFilled: 0,
+        endedAtMissing: 0,
+        prismTagged: 0,
+        prismUntagged: 0,
+      },
+      series: {
+        efmDaily: [],
+        padDaily: [],
+        sessionsStartedDaily: [],
+        sessionsCompletedDaily: [],
+        moodCheckinsDaily: [],
+        tasksCompletedDaily: [],
+        sessionsByWeekday: [],
+      },
+      more: {
+        uniqueStudiers: 0,
+        multiSessionUsers: 0,
+        meanSessionsPerStudier: null,
+        sessionsWithTask: 0,
+        sessionsWithCourse: 0,
+        meanPlannedMins: null,
+        planAdherencePct: null,
+        plannedVsActualPairs: 0,
+        moodCheckins: 0,
+        moodCheckinUsers: 0,
+        meanMoodScore: null,
+        sessionsWithMoodAfter: 0,
+        tasksCompletedWindow: 0,
+        tasksCreatedWindow: 0,
+        activeCourses: 0,
+        prismPresetsAvailable: 0,
+        adaSessionsWindow: 0,
+        notificationsWindow: 0,
+      },
     },
     hypotheses: [],
+    unlocks: [],
   };
 }

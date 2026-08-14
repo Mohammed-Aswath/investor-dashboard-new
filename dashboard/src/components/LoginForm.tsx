@@ -42,10 +42,9 @@ export function LoginForm() {
           Prism Proof Desk
         </h1>
         <p className="mt-3 text-sm font-medium leading-relaxed text-mist">
-          Internal tool for the Aqademiq team. It shows whether we can prove
-          Prism helps students study, what study behavior we see in the live
-          database, and which research questions are still blocked. Not an
-          investor dashboard.
+          Main motive: how did Prism help Aqademiq students — and is Prism /
+          study time tracked properly in the live database? All numbers come
+          from Postgres. Not an investor dashboard.
         </p>
 
         <form onSubmit={onSubmit} className="mt-8 space-y-4">

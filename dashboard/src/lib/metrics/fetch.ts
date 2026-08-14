@@ -6,6 +6,7 @@ import {
   type Hypothesis,
   type MetricsPayload,
   type ReadinessCheck,
+  type UnlockInsight,
 } from "./types";
 
 const WINDOW_DAYS = 30;
@@ -275,6 +276,154 @@ export async function fetchMetrics(): Promise<MetricsPayload> {
       FROM day_totals
       GROUP BY study_day
       ORDER BY study_day
+      `,
+      [WINDOW_DAYS],
+    );
+
+    const sessionsStartedDaily = await querySeries(
+      `
+      SELECT (started_at AT TIME ZONE 'utc')::date AS day, COUNT(*)::float AS value
+      FROM focus_sessions
+      WHERE started_at >= (now() AT TIME ZONE 'utc') - make_interval(days => $1)
+      GROUP BY 1
+      ORDER BY 1
+      `,
+      [WINDOW_DAYS],
+    );
+
+    const sessionsCompletedDaily = await querySeries(
+      `
+      SELECT (started_at AT TIME ZONE 'utc')::date AS day, COUNT(*)::float AS value
+      FROM focus_sessions
+      WHERE was_completed IS TRUE
+        AND started_at >= (now() AT TIME ZONE 'utc') - make_interval(days => $1)
+      GROUP BY 1
+      ORDER BY 1
+      `,
+      [WINDOW_DAYS],
+    );
+
+    const moodCheckinsDaily = await querySeries(
+      `
+      SELECT (created_at AT TIME ZONE 'utc')::date AS day, COUNT(*)::float AS value
+      FROM mood_checkins
+      WHERE created_at >= (now() AT TIME ZONE 'utc') - make_interval(days => $1)
+      GROUP BY 1
+      ORDER BY 1
+      `,
+      [WINDOW_DAYS],
+    );
+
+    const tasksCompletedDaily = await querySeries(
+      `
+      SELECT (completed_at AT TIME ZONE 'utc')::date AS day, COUNT(*)::float AS value
+      FROM tasks
+      WHERE completed_at IS NOT NULL
+        AND completed_at >= (now() AT TIME ZONE 'utc') - make_interval(days => $1)
+      GROUP BY 1
+      ORDER BY 1
+      `,
+      [WINDOW_DAYS],
+    );
+
+    const sessionsByWeekday = await querySeries(
+      `
+      SELECT
+        ((EXTRACT(ISODOW FROM started_at AT TIME ZONE 'utc')::int))::text AS day,
+        COUNT(*)::float AS value
+      FROM focus_sessions
+      WHERE started_at >= (now() AT TIME ZONE 'utc') - make_interval(days => $1)
+      GROUP BY 1
+      ORDER BY 1
+      `,
+      [WINDOW_DAYS],
+    );
+
+    const moreRow = await queryOne<{
+      unique_studiers: string;
+      multi_session_users: string;
+      sessions_with_task: string;
+      sessions_with_course: string;
+      mean_planned: string;
+      plan_pairs: string;
+      mean_adherence: string;
+      mood_checkins: string;
+      mood_users: string;
+      mean_mood: string;
+      mood_after_sessions: string;
+      tasks_done: string;
+      tasks_created: string;
+      active_courses: string;
+      presets: string;
+      ada_sessions: string;
+      notifications: string;
+    }>(
+      `
+      SELECT
+        (SELECT COUNT(DISTINCT user_id)::text FROM focus_sessions
+          WHERE started_at >= (now() AT TIME ZONE 'utc') - make_interval(days => $1)
+        ) AS unique_studiers,
+        (SELECT COUNT(*)::text FROM (
+          SELECT user_id FROM focus_sessions
+          WHERE started_at >= (now() AT TIME ZONE 'utc') - make_interval(days => $1)
+          GROUP BY user_id HAVING COUNT(*) >= 2
+        ) u) AS multi_session_users,
+        (SELECT COUNT(*)::text FROM focus_sessions
+          WHERE task_id IS NOT NULL
+            AND started_at >= (now() AT TIME ZONE 'utc') - make_interval(days => $1)
+        ) AS sessions_with_task,
+        (SELECT COUNT(*)::text FROM focus_sessions
+          WHERE course_id IS NOT NULL
+            AND started_at >= (now() AT TIME ZONE 'utc') - make_interval(days => $1)
+        ) AS sessions_with_course,
+        (SELECT AVG(planned_duration_mins)::text FROM focus_sessions
+          WHERE planned_duration_mins IS NOT NULL AND planned_duration_mins > 0
+            AND started_at >= (now() AT TIME ZONE 'utc') - make_interval(days => $1)
+        ) AS mean_planned,
+        (SELECT COUNT(*)::text FROM focus_sessions
+          WHERE was_completed IS TRUE
+            AND planned_duration_mins > 0
+            AND actual_duration_mins > 0
+            AND started_at >= (now() AT TIME ZONE 'utc') - make_interval(days => $1)
+        ) AS plan_pairs,
+        (SELECT AVG(
+            LEAST(actual_duration_mins::numeric / NULLIF(planned_duration_mins, 0), 2.0)
+          )::text
+          FROM focus_sessions
+          WHERE was_completed IS TRUE
+            AND planned_duration_mins > 0
+            AND actual_duration_mins > 0
+            AND started_at >= (now() AT TIME ZONE 'utc') - make_interval(days => $1)
+        ) AS mean_adherence,
+        (SELECT COUNT(*)::text FROM mood_checkins
+          WHERE created_at >= (now() AT TIME ZONE 'utc') - make_interval(days => $1)
+        ) AS mood_checkins,
+        (SELECT COUNT(DISTINCT user_id)::text FROM mood_checkins
+          WHERE created_at >= (now() AT TIME ZONE 'utc') - make_interval(days => $1)
+        ) AS mood_users,
+        (SELECT AVG(mood_score)::text FROM mood_checkins
+          WHERE mood_score IS NOT NULL
+            AND created_at >= (now() AT TIME ZONE 'utc') - make_interval(days => $1)
+        ) AS mean_mood,
+        (SELECT COUNT(*)::text FROM focus_sessions
+          WHERE mood_after IS NOT NULL
+            AND started_at >= (now() AT TIME ZONE 'utc') - make_interval(days => $1)
+        ) AS mood_after_sessions,
+        (SELECT COUNT(*)::text FROM tasks
+          WHERE completed_at IS NOT NULL
+            AND completed_at >= (now() AT TIME ZONE 'utc') - make_interval(days => $1)
+        ) AS tasks_done,
+        (SELECT COUNT(*)::text FROM tasks
+          WHERE created_at >= (now() AT TIME ZONE 'utc') - make_interval(days => $1)
+        ) AS tasks_created,
+        (SELECT COUNT(*)::text FROM courses WHERE COALESCE(is_archived, false) = false) AS active_courses,
+        (SELECT COUNT(*)::text FROM prism_presets) AS presets,
+        (SELECT COUNT(*)::text FROM ada_sessions
+          WHERE created_at >= (now() AT TIME ZONE 'utc') - make_interval(days => $1)
+        ) AS ada_sessions,
+        (SELECT COUNT(*)::text FROM notification_deliveries
+          WHERE created_at >= (now() AT TIME ZONE 'utc') - make_interval(days => $1)
+        ) AS notifications
       `,
       [WINDOW_DAYS],
     );
@@ -578,6 +727,296 @@ export async function fetchMetrics(): Promise<MetricsPayload> {
     const pauseNonzero = n(coverage.pause_nonzero);
     const interruptNonzero = n(coverage.interrupt_nonzero);
 
+    const minutesHealthy = (usableDurationPct ?? 0) >= 70;
+    const minutesPartial = (usableDurationPct ?? 0) >= 20;
+    const prismTaggedEnough = prismOnValid >= 30 && prismOffValid >= 30;
+    const padEnough = h3Pads >= 5;
+    const endedHealthy = (endedAtFilledPct ?? 0) >= 90;
+
+    const unlocks: UnlockInsight[] = [
+      {
+        id: "real_minutes_trend",
+        title: "Real study minutes over time",
+        whatYouGet:
+          "A day-by-day chart of trusted study minutes for Aqademiq students — the basic health signal after timers stop saving 0.",
+        needs: "Finish timers must save real duration (and ideally ended_at).",
+        status: minutesHealthy ? "live" : minutesPartial ? "waiting" : "waiting",
+        badge: minutesHealthy
+          ? "Live from DB"
+          : "Ready — waiting on minute logging",
+        now: `${validEfm} usable sessions · ${Math.round(totalEfm)} total EFM in ${WINDOW_DAYS}d`,
+        bars: [
+          { name: "Usable", value: completedNetInRange },
+          {
+            name: "Broken",
+            value: Math.max(completedTotal - completedNetInRange, 0),
+          },
+        ],
+      },
+      {
+        id: "prism_on_vs_off",
+        title: "Did Prism-on sessions study longer?",
+        whatYouGet:
+          "Side-by-side average real study minutes: Prism sound on vs off. First answer to “how did Prism help?” (associational — not full proof).",
+        needs: "Always tag Prism on/off + usable minutes on both sides (~30+ each).",
+        status: prismTaggedEnough
+          ? "live"
+          : minutesPartial
+            ? "waiting"
+            : "waiting",
+        badge: prismTaggedEnough
+          ? "Live from DB"
+          : "Ready — waiting on Prism tags + minutes",
+        now: `Mean EFM on/off: ${meanOn == null ? "—" : Math.round(meanOn * 10) / 10} / ${meanOff == null ? "—" : Math.round(meanOff * 10) / 10} · n=${prismOnValid}/${prismOffValid}`,
+        bars: [
+          {
+            name: "Prism on",
+            value: meanOn == null ? 0 : Math.round(meanOn * 10) / 10,
+          },
+          {
+            name: "Prism off",
+            value: meanOff == null ? 0 : Math.round(meanOff * 10) / 10,
+          },
+        ],
+      },
+      {
+        id: "productive_return",
+        title: "Productive day → come back next week?",
+        whatYouGet:
+          "After a day with 20+ real study minutes, how often does the student study again within 7 days? Habit signal for Aqademiq.",
+        needs: "Usable minutes so productive days (PAD) exist in volume.",
+        status: padEnough ? "live" : "waiting",
+        badge: padEnough
+          ? "Live from DB"
+          : "Ready — waiting on productive days",
+        now: `${h3Return}/${h3Pads} PAD days had a return within 7d (${pct(h3Return, h3Pads) ?? 0}%)`,
+        bars: [
+          { name: "Returned", value: h3Return },
+          { name: "No return", value: Math.max(h3Pads - h3Return, 0) },
+        ],
+      },
+      {
+        id: "started_for_real",
+        title: "Started studying for real (activation)",
+        whatYouGet:
+          "% of students who, in their first 14 days, look like real users (course + tasks + several study days with enough minutes).",
+        needs: "Usable minutes + dated tasks/courses (courses/tasks already exist).",
+        status: vasEligible >= 10 && minutesPartial ? "live" : "waiting",
+        badge:
+          vasEligible >= 10 && minutesPartial
+            ? "Live from DB"
+            : "Ready — waiting on minutes for the bar to mean something",
+        now: `${vasReached}/${vasEligible} reached (${pct(vasReached, vasEligible) ?? 0}%)`,
+        bars: [
+          { name: "Reached", value: vasReached },
+          {
+            name: "Not yet",
+            value: Math.max(vasEligible - vasReached, 0),
+          },
+        ],
+      },
+      {
+        id: "end_time_quality",
+        title: "Strict session timing",
+        whatYouGet:
+          "Study minutes capped by real start→end clock time (not only the minutes field). Cleaner Prism-time science.",
+        needs: "ended_at filled on ~all focus sessions.",
+        status: endedHealthy ? "live" : "waiting",
+        badge: endedHealthy
+          ? "Live from DB"
+          : "Ready — waiting on ended_at",
+        now: `${endedAtFilled}/${sessionsTotal} sessions have end time (${endedAtFilledPct ?? 0}%)`,
+        bars: [
+          { name: "Has end", value: endedAtFilled },
+          {
+            name: "Missing",
+            value: Math.max(sessionsTotal - endedAtFilled, 0),
+          },
+        ],
+      },
+      {
+        id: "control_causal",
+        title: "True proof: control vs Prism",
+        whatYouGet:
+          "Fair test — some sessions randomly without Prism. Compare EFM. This is the only honest “Prism caused help” claim.",
+        needs: "Control arm in product + logging assignment on each session.",
+        status: "blocked",
+        badge: "Blocked — needs control arm in product",
+        now: hasExperiment
+          ? "Experiment tables may exist — not confirmed as a live control cut."
+          : "No control / experiment assignment in DB.",
+        bars: [
+          { name: "Control", value: 0 },
+          { name: "Prism", value: 0 },
+        ],
+      },
+      {
+        id: "engine_version_ab",
+        title: "Which Prism version helped more?",
+        whatYouGet:
+          "Compare real study minutes across Prism software versions after you ship engine changes.",
+        needs: "engine_version written on every focus session.",
+        status: hasEngineVersion ? "waiting" : "blocked",
+        badge: hasEngineVersion
+          ? "Ready — waiting on volume per version"
+          : "Blocked — no engine_version field",
+        now: hasEngineVersion
+          ? "Field exists — fill it on every new session."
+          : "focus_sessions has no engine_version.",
+        bars: [
+          { name: "vA", value: 0 },
+          { name: "vB", value: 0 },
+        ],
+      },
+      {
+        id: "feel_probes",
+        title: "Did students feel more focused with Prism?",
+        whatYouGet:
+          "Link short “how do you feel?” check-ins to Prism-on sessions and study minutes.",
+        needs: "Occasional in-app feel/focus probes saved on the session.",
+        status: hasProbe ? "waiting" : "blocked",
+        badge: hasProbe
+          ? "Ready — waiting on probe answers"
+          : "Blocked — no probe tables",
+        now: hasProbe
+          ? "Probe table may exist — confirm users get questions."
+          : "No ground-truth probe tables.",
+        bars: [
+          { name: "Focused", value: 0 },
+          { name: "Not", value: 0 },
+        ],
+      },
+      {
+        id: "plan_vs_actual",
+        title: "Planned timer vs actual study time",
+        whatYouGet:
+          "Did students hit the minutes they planned? Adherence % = actual ÷ planned on finished sessions.",
+        needs: "actual_duration_mins filled (planned already exists on most sessions).",
+        status: n(moreRow.plan_pairs) >= 20 ? "live" : "waiting",
+        badge:
+          n(moreRow.plan_pairs) >= 20
+            ? "Live from DB"
+            : "Ready — waiting on actual minutes",
+        now: `${n(moreRow.plan_pairs)} sessions with both planned+actual · adherence ${
+          nOrNull(moreRow.mean_adherence) == null
+            ? "—"
+            : `${Math.round(n(moreRow.mean_adherence) * 1000) / 10}%`
+        }`,
+        bars: [
+          {
+            name: "Planned avg",
+            value:
+              nOrNull(moreRow.mean_planned) == null
+                ? 0
+                : Math.round(n(moreRow.mean_planned) * 10) / 10,
+          },
+          {
+            name: "Pairs",
+            value: n(moreRow.plan_pairs),
+          },
+        ],
+      },
+      {
+        id: "task_linked_study",
+        title: "Study linked to a real task",
+        whatYouGet:
+          "Share of focus sessions tied to a task — Prism helping with planned work, not idle timers.",
+        needs: "App keeps linking task_id on focus sessions (already partial).",
+        status: started > 0 ? "live" : "waiting",
+        badge: started > 0 ? "Live from DB" : "Ready — waiting on sessions",
+        now: `${n(moreRow.sessions_with_task)}/${started} sessions linked to a task`,
+        bars: [
+          { name: "With task", value: n(moreRow.sessions_with_task) },
+          {
+            name: "No task",
+            value: Math.max(started - n(moreRow.sessions_with_task), 0),
+          },
+        ],
+      },
+      {
+        id: "repeat_studiers",
+        title: "Students who came back to study",
+        whatYouGet:
+          "How many unique studiers had 2+ focus sessions — early habit / retention signal.",
+        needs: "Focus sessions keep flowing (already live).",
+        status: n(moreRow.unique_studiers) >= 3 ? "live" : "waiting",
+        badge:
+          n(moreRow.unique_studiers) >= 3
+            ? "Live from DB"
+            : "Ready — waiting on more studiers",
+        now: `${n(moreRow.multi_session_users)} of ${n(moreRow.unique_studiers)} studiers had 2+ sessions`,
+        bars: [
+          { name: "Repeat", value: n(moreRow.multi_session_users) },
+          {
+            name: "Once only",
+            value: Math.max(
+              n(moreRow.unique_studiers) - n(moreRow.multi_session_users),
+              0,
+            ),
+          },
+        ],
+      },
+      {
+        id: "mood_pulse",
+        title: "Mood check-ins while studying",
+        whatYouGet:
+          "Mood score trends next to study minutes / Prism-on days — soft signal of how students feel.",
+        needs: "mood_checkins keep writing (table live); link more to focus_session_id.",
+        status: n(moreRow.mood_checkins) >= 5 ? "live" : "waiting",
+        badge:
+          n(moreRow.mood_checkins) >= 5
+            ? "Live from DB"
+            : "Ready — waiting on mood volume",
+        now: `${n(moreRow.mood_checkins)} check-ins · ${n(moreRow.mood_users)} users · avg score ${
+          nOrNull(moreRow.mean_mood) == null
+            ? "—"
+            : Math.round(n(moreRow.mean_mood) * 10) / 10
+        }`,
+        bars: [
+          { name: "Check-ins", value: n(moreRow.mood_checkins) },
+          { name: "Users", value: n(moreRow.mood_users) },
+        ],
+      },
+      {
+        id: "tasks_done",
+        title: "Tasks completed alongside focus",
+        whatYouGet:
+          "Task completions in the same window as focus — Aqademiq output signal next to Prism time.",
+        needs: "Tasks keep completing (already live).",
+        status: n(moreRow.tasks_done) >= 1 ? "live" : "waiting",
+        badge:
+          n(moreRow.tasks_done) >= 1 ? "Live from DB" : "Ready — waiting on completions",
+        now: `${n(moreRow.tasks_done)} tasks completed · ${n(moreRow.tasks_created)} created in ${WINDOW_DAYS}d`,
+        bars: [
+          { name: "Done", value: n(moreRow.tasks_done) },
+          { name: "Created", value: n(moreRow.tasks_created) },
+        ],
+      },
+      {
+        id: "weekday_pattern",
+        title: "Which weekdays students open the timer",
+        whatYouGet:
+          "Heat of focus starts by weekday — when to nudge or when Prism load is highest.",
+        needs: "Focus session starts (already live).",
+        status: started >= 5 ? "live" : "waiting",
+        badge: started >= 5 ? "Live from DB" : "Ready — waiting on volume",
+        now: `${started} sessions in window across weekdays`,
+        bars: sessionsByWeekday.slice(0, 7).map((p) => ({
+          name: ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][
+            Number(p.day)
+          ] ?? p.day,
+          value: p.value,
+        })),
+      },
+    ];
+
+    const uniqueStudiers = n(moreRow.unique_studiers);
+    const meanSessionsPerStudier =
+      uniqueStudiers === 0 ? null : Math.round((started / uniqueStudiers) * 10) / 10;
+    const meanAdherence = nOrNull(moreRow.mean_adherence);
+    const planAdherencePct =
+      meanAdherence == null ? null : Math.round(meanAdherence * 1000) / 10;
+
     return {
       meta: {
         asOf,
@@ -612,9 +1051,58 @@ export async function fetchMetrics(): Promise<MetricsPayload> {
           pauseNonzero === 0 && interruptNonzero === 0
             ? "Heads-up: the app almost never records pauses or interruptions, so we cannot tell “smooth focus” from “interrupted focus” yet. Real study minutes still use the simple formula."
             : `Some sessions recorded pauses (${pauseNonzero}) or interruptions (${interruptNonzero}).`,
-        series: { efmDaily, padDaily },
+        gaps: {
+          sessionsTotal,
+          completedUsableMins: completedNetInRange,
+          completedUnusableMins: Math.max(completedTotal - completedNetInRange, 0),
+          endedAtFilled,
+          endedAtMissing: Math.max(sessionsTotal - endedAtFilled, 0),
+          prismTagged: prismPresetSet,
+          prismUntagged: Math.max(sessionsTotal - prismPresetSet, 0),
+        },
+        series: {
+          efmDaily,
+          padDaily,
+          sessionsStartedDaily,
+          sessionsCompletedDaily,
+          moodCheckinsDaily,
+          tasksCompletedDaily,
+          sessionsByWeekday: sessionsByWeekday.map((p) => ({
+            day: ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][
+              Number(p.day)
+            ] ?? p.day,
+            value: p.value,
+          })),
+        },
+        more: {
+          uniqueStudiers,
+          multiSessionUsers: n(moreRow.multi_session_users),
+          meanSessionsPerStudier,
+          sessionsWithTask: n(moreRow.sessions_with_task),
+          sessionsWithCourse: n(moreRow.sessions_with_course),
+          meanPlannedMins:
+            nOrNull(moreRow.mean_planned) == null
+              ? null
+              : Math.round(n(moreRow.mean_planned) * 10) / 10,
+          planAdherencePct,
+          plannedVsActualPairs: n(moreRow.plan_pairs),
+          moodCheckins: n(moreRow.mood_checkins),
+          moodCheckinUsers: n(moreRow.mood_users),
+          meanMoodScore:
+            nOrNull(moreRow.mean_mood) == null
+              ? null
+              : Math.round(n(moreRow.mean_mood) * 10) / 10,
+          sessionsWithMoodAfter: n(moreRow.mood_after_sessions),
+          tasksCompletedWindow: n(moreRow.tasks_done),
+          tasksCreatedWindow: n(moreRow.tasks_created),
+          activeCourses: n(moreRow.active_courses),
+          prismPresetsAvailable: n(moreRow.presets),
+          adaSessionsWindow: n(moreRow.ada_sessions),
+          notificationsWindow: n(moreRow.notifications),
+        },
       },
       hypotheses,
+      unlocks,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown metrics error";

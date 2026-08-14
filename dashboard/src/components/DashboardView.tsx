@@ -6,11 +6,13 @@ import type {
   HypothesisStatus,
   MetricsPayload,
   ReadinessStatus,
+  UnlockStatus,
 } from "@/lib/metrics/types";
 import { formatInt, formatPct, formatWhen } from "@/lib/format";
-import { TrendChart } from "./TrendChart";
 import { BrandMark } from "./BrandMark";
 import { AskBox } from "./AskBox";
+import { InsightCharts } from "./InsightCharts";
+import { ChartDbChangesPanel } from "./ChartDbChangesPanel";
 
 type Tab = "readiness" | "outcomes" | "hypotheses";
 
@@ -19,31 +21,31 @@ const TAB_META: Record<
   { nav: string; name: string; question: string; shows: string; useFor: string }
 > = {
   readiness: {
-    nav: "1 · Setup checklist",
-    name: "Setup checklist",
-    question: "What’s broken, and what do we fix first?",
+    nav: "1 · Is Prism time tracked?",
+    name: "Is Prism time tracked properly?",
+    question: "Are we saving Prism + study time the right way?",
     shows:
-      "Live problems in our measuring (not a Prism quality score). Each card = root cause + proof from the database + fix.",
+      "Live DB check: minutes, end times, Prism on/off tags, fair comparison group. Each card = root cause + proof + fix.",
     useFor:
-      "Start with priority 1. When engineering fixes logging, refresh — cards turn Ready by themselves.",
+      "Fix priority 1 first (minutes). Until tracking is Ready, we cannot answer “how did Prism help students?”",
   },
   outcomes: {
-    nav: "2 · Study results",
-    name: "Study results",
-    question: "What did students actually do in Aqademiq?",
+    nav: "2 · Did Prism help?",
+    name: "Did Prism help students?",
+    question: "What study + Prism signals do we see in the live DB?",
     shows:
-      "Counts from real focus sessions: how many timers finished, how many real study minutes we can trust, how many productive days, how often Prism sound was tagged on, and whether people looked like “real starters” in their first two weeks.",
+      "All numbers from Aqademiq Postgres: timers, real study minutes, Prism tagged sessions, gap charts. This is what we can see so far — not a claim that Prism caused it.",
     useFor:
-      "Use this to spot product and data problems (for example: timers finish but minutes = 0). After you fix logging, watch these numbers weekly to see if studying grows. Do not read this page as “Prism lift” — it is behavior + data quality, not proof of cause.",
+      "If gap charts show broken minutes / untagged Prism, believe that over “students didn’t study.” After tracking is fixed, watch these to see if Prism-on sessions look better.",
   },
   hypotheses: {
-    nav: "3 · Research questions",
-    name: "Research questions",
-    question: "Which Prism questions can we ask the data today?",
+    nav: "3 · Can we prove it?",
+    name: "Can we prove Prism helped?",
+    question: "Which “Prism helped” questions can we answer with DB data today?",
     shows:
-      "Three research bets. Each says whether we can test it, we lack data, or we are blocked until logging exists. Small evidence numbers under each card show why.",
+      "Research bets from live counts. Most stay blocked/weak until Prism time is tracked properly and a fair comparison exists.",
     useFor:
-      "Use this to decide what to build next so a question moves from Blocked → Not enough data → We can test this. Only then collect enough sessions to answer. Never treat a Blocked card as a failed experiment — it means the experiment was never instrumented.",
+      "Use Ask Gemini for plain-language answers with full DB context. Don’t claim proof while cards say blocked or not enough data.",
   },
 };
 
@@ -60,6 +62,12 @@ function statusWord(status: ReadinessStatus | HypothesisStatus): string {
   if (status === "testable") return "We can test this";
   if (status === "weak") return "Not enough data yet";
   return "Blocked — need more logging";
+}
+
+function unlockBadgeClass(status: UnlockStatus): string {
+  if (status === "live") return "text-good";
+  if (status === "waiting") return "text-amber-600";
+  return "text-[#E85476]";
 }
 
 function StatusDot({ status }: { status: ReadinessStatus | HypothesisStatus }) {
@@ -165,9 +173,9 @@ export function DashboardView() {
             Prism Proof Desk
           </h1>
           <p className="mt-3 text-base font-medium leading-relaxed text-ink/85">
-            A simple place to see whether we can <em>prove</em> that Prism (the
-            focus-sound engine inside Aqademiq) helps students study — and what
-            to fix if we cannot prove it yet.
+            Main motive:{" "}
+            <em>How did Prism help Aqademiq students?</em> — and first:{" "}
+            <em>Is Prism / study time tracked properly in the live database?</em>
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -188,52 +196,107 @@ export function DashboardView() {
         </div>
       </header>
 
-      <section className="mb-8 animate-rise rounded-[28px] border border-line bg-white/95 px-6 py-6 shadow-card">
-        <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-mist">
-          Start here · big picture
-        </p>
-        <h2 className="mt-2 text-xl font-bold text-ink">
-          What is this, in everyday words?
-        </h2>
-        <div className="mt-4 space-y-3 text-sm leading-relaxed text-mist">
-          <p>
-            <span className="font-semibold text-ink">Aqademiq</span> is the study
-            app. Students start focus timers, add courses and tasks, and can play{" "}
-            <span className="font-semibold text-ink">Prism</span> focus sound
-            while they work.
+      {data ? (
+        <section className="mb-8 animate-rise rounded-[28px] border border-line bg-white/95 px-6 py-6 shadow-card">
+          <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-mist">
+            Main motive · from live Aqademiq database
           </p>
-          <p>
-            <span className="font-semibold text-ink">Prism Proof Desk</span> does
-            not sell Prism and does not show investor growth charts. It only
-            looks at Aqademiq’s database and helps the team answer:{" "}
-            <em>“Do we have the right logs to prove Prism helps — and what do
-            we see so far?”</em>
-          </p>
-          <p>
-            Think of three drawers:
-          </p>
-          <ol className="list-decimal space-y-2 pl-5 text-ink/80">
+          <h2 className="mt-2 text-xl font-bold text-ink">
+            How did Prism help Aqademiq students?
+          </h2>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="rounded-2xl border border-[#E85476]/25 bg-[#E85476]/8 px-4 py-4">
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-mist">
+                Q1 · Is Prism / study time tracked properly?
+              </p>
+              <p className="mt-2 text-lg font-bold text-ink">
+                {data.readiness.summary.red > 0 || data.readiness.summary.amber > 0
+                  ? "No — not yet"
+                  : "Yes — tracking looks ready"}
+              </p>
+              <ul className="mt-3 space-y-1.5 text-sm text-mist">
+                <li>
+                  Usable study minutes:{" "}
+                  <span className="font-semibold text-ink">
+                    {data.outcomes.gaps.completedUsableMins} of{" "}
+                    {data.outcomes.gaps.completedUsableMins +
+                      data.outcomes.gaps.completedUnusableMins}{" "}
+                    finished timers
+                  </span>
+                </li>
+                <li>
+                  Session end time saved:{" "}
+                  <span className="font-semibold text-ink">
+                    {data.outcomes.gaps.endedAtFilled} of{" "}
+                    {data.outcomes.gaps.sessionsTotal}
+                  </span>
+                </li>
+                <li>
+                  Prism sound tagged:{" "}
+                  <span className="font-semibold text-ink">
+                    {data.outcomes.gaps.prismTagged} of{" "}
+                    {data.outcomes.gaps.sessionsTotal}
+                  </span>
+                </li>
+                <li>
+                  Checklist:{" "}
+                  <span className="font-semibold text-ink">
+                    {data.readiness.summary.red} missing ·{" "}
+                    {data.readiness.summary.amber} partial ·{" "}
+                    {data.readiness.summary.green} ready
+                  </span>
+                </li>
+              </ul>
+            </div>
+            <div className="rounded-2xl border border-line bg-paper/80 px-4 py-4">
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-mist">
+                Q2 · How did Prism help students?
+              </p>
+              <p className="mt-2 text-lg font-bold text-ink">
+                {data.outcomes.prismOnValidEfm >= 30 &&
+                data.readiness.summary.red === 0
+                  ? "We can start comparing — still be careful with cause"
+                  : "Cannot prove yet"}
+              </p>
+              <p className="mt-3 text-sm leading-relaxed text-mist">
+                Honest answer from the DB today: we see{" "}
+                <span className="font-semibold text-ink">
+                  {formatInt(data.outcomes.sessionsStarted)} sessions started
+                </span>
+                ,{" "}
+                <span className="font-semibold text-ink">
+                  {formatInt(data.outcomes.prismOnSessions)} with Prism tagged
+                </span>
+                , and only{" "}
+                <span className="font-semibold text-ink">
+                  {formatInt(data.outcomes.validEfmSessions)} with usable study
+                  minutes
+                </span>
+                . Without proper Prism-time tracking + a fair comparison group,
+                “Prism helped” would be a guess — not proof.
+              </p>
+              <p className="mt-3 text-sm font-medium text-ink">
+                All charts and counts below are from the live DB — not placeholders,
+                not an ML model.
+              </p>
+            </div>
+          </div>
+          <ol className="mt-5 list-decimal space-y-1 pl-5 text-sm text-mist">
             <li>
-              <span className="font-semibold text-ink">Setup checklist</span> —
-              are the measuring tools installed?
+              <span className="font-semibold text-ink">Page 1</span> — Is Prism
+              time tracked properly?
             </li>
             <li>
-              <span className="font-semibold text-ink">Study results</span> —
-              what did people do in the last 30 days?
+              <span className="font-semibold text-ink">Page 2</span> — What do we
+              see about study + Prism (and where data is missing)?
             </li>
             <li>
-              <span className="font-semibold text-ink">Research questions</span> —
-              which Prism claims can we test with that data?
+              <span className="font-semibold text-ink">Page 3</span> — Can we prove
+              Prism helped? (or what’s blocking proof)
             </li>
           </ol>
-          <p>
-            <span className="font-semibold text-ink">Important:</span> if study
-            minutes look tiny, that often means the app saved{" "}
-            <em>0 minutes</em> on finished timers — a logging bug — not that
-            nobody studied. Always read the checklist first.
-          </p>
-        </div>
-      </section>
+        </section>
+      ) : null}
 
       <nav className="mb-6 flex flex-wrap gap-2">
         {(Object.keys(TAB_META) as Tab[]).map((id) => (
@@ -288,6 +351,7 @@ export function DashboardView() {
 
           {tab === "readiness" ? (
             <section className="animate-rise space-y-5">
+              <ChartDbChangesPanel />
               {(() => {
                 const ordered = [...data.readiness.checks].sort(
                   (a, b) => a.priority - b.priority,
@@ -419,83 +483,99 @@ export function DashboardView() {
 
           {tab === "outcomes" ? (
             <section className="animate-rise space-y-8">
+              <ChartDbChangesPanel />
               <div className="rounded-[22px] border border-line bg-paper/80 px-5 py-4 text-sm leading-relaxed text-mist">
-                <p className="font-semibold text-ink">How to use Study results</p>
+                <p className="font-semibold text-ink">
+                  Charts for “How did Prism help students?”
+                </p>
                 <p className="mt-2">
-                  Each card has a big number, then “what this means” and “what you
-                  can do.” If Real study minutes is near zero while many timers
-                  finished, believe the checklist (bad duration logging), not
-                  “students never study.”
+                  Below are the best insight charts for that question. They stay{" "}
+                  <span className="font-semibold text-ink">empty on purpose</span>{" "}
+                  until the DB tracks trusted study / Prism time. You update
+                  logging — refresh — they draw. No fake lines from broken 0-minute
+                  rows.
                 </p>
               </div>
-
-              <div className="grid gap-4 lg:grid-cols-2">
-                <Stat
-                  name="Real study minutes"
-                  value={formatInt(Math.round(data.outcomes.totalEfm))}
-                  whatItMeans={`Total minutes we trust after cleaning pauses and ignoring tiny/huge sessions. Only ${formatInt(data.outcomes.validEfmSessions)} session(s) currently qualify (average ${data.outcomes.meanEfmPerValidSession ?? "—"} minutes). Official short name: EFM.`}
-                  whatToDo="If this is tiny while many timers finished, fix duration logging first. After that, watch this total grow week to week as a health signal for studying — still not proof Prism caused the growth."
-                />
-                <Stat
-                  name="Productive study days"
-                  value={formatInt(data.outcomes.padCount)}
-                  whatItMeans={`A day counts when someone got at least 20 real study minutes that day. ${formatInt(data.outcomes.padUsers)} user(s) had such a day. Official short name: PAD.`}
-                  whatToDo="Use this as “did real studying happen?” After minutes logging works, rising productive days means the habit is sticking. Pair with Research question 3 (coming back next week)."
-                />
-                <Stat
-                  name="Finished the timer"
-                  value={formatPct(data.outcomes.timerFinishRate)}
-                  whatItMeans={`${formatInt(data.outcomes.sessionsCompleted)} of ${formatInt(data.outcomes.sessionsStarted)} focus sessions were marked completed. This is about finishing the timer UI, not about Prism quality.`}
-                  whatToDo="If finish rate is healthy but Real study minutes is not, the product flow works and the measurement fields do not — send that to engineering."
-                />
-                <Stat
-                  name="Started studying for real"
-                  value={formatPct(data.outcomes.vasRate)}
-                  whatItMeans={`${formatInt(data.outcomes.vasReached)} of ${formatInt(data.outcomes.vasEligible)} people who began looked like real users in their first 14 days (course + dated tasks + several study days with enough minutes). Official short name: VAS.`}
-                  whatToDo="Low % means most people dabble then leave. Improve onboarding and early study habits. Do not blame Prism until Setup checklist can support a fair test."
-                />
-                <Stat
-                  name="Prism sound on vs off"
-                  value={`${formatInt(data.outcomes.prismOnSessions)} on · ${formatInt(data.outcomes.prismOffSessions)} off`}
-                  whatItMeans="How many focus sessions saved a Prism sound preset. This is only a tag in the database — not a scientific control group."
-                  whatToDo="If almost everything is “off” or untagged, teach the app to always record Prism on/off. Until then, ignore on-vs-off averages as marketing."
-                />
-                <Stat
-                  name="Average minutes · Prism on vs off"
-                  value={`${data.outcomes.meanEfmPrismOn ?? "—"} vs ${data.outcomes.meanEfmPrismOff ?? "—"}`}
-                  whatItMeans={`Side-by-side average real study minutes. Usable sample sizes: Prism on = ${data.outcomes.prismOnValidEfm}, off = ${data.outcomes.prismOffValidEfm}. Tiny samples make the comparison meaningless.`}
-                  whatToDo="Only discuss this after dozens of usable sessions on both sides — and remember Research question 2 still needs a true fair comparison group for proof."
-                />
-              </div>
-
-              {data.outcomes.instrumentationNote ? (
-                <p className="rounded-2xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm leading-relaxed text-amber-900">
-                  {data.outcomes.instrumentationNote}
-                </p>
-              ) : null}
 
               <div>
-                <p className="mb-3 text-sm font-semibold text-ink">
-                  Trends over the last {data.meta.windowDays} days
+                <p className="mb-2 text-sm font-semibold text-ink">
+                  Roadmap · what each chart will unlock
                 </p>
-                <p className="mb-4 text-sm leading-relaxed text-mist">
-                  Charts show day-by-day totals. Empty or flat charts usually mean
-                  few sessions had usable minutes — again, check the Setup
-                  checklist.
+                <p className="mb-3 text-xs text-mist">
+                  Same analyses as the empty plots — status from live SQL (no
+                  nested charts here).
                 </p>
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <TrendChart
-                    title="Real study minutes by day"
-                    subtitle="Only sessions with usable duration"
-                    data={data.outcomes.series.efmDaily}
-                    valueLabel="Minutes"
+                <ul className="grid gap-2 md:grid-cols-2">
+                  {data.unlocks.map((u) => (
+                    <li
+                      key={u.id}
+                      className="rounded-2xl border border-line bg-white/90 px-4 py-3 text-sm"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <StatusDot
+                          status={
+                            u.status === "live"
+                              ? "green"
+                              : u.status === "waiting"
+                                ? "amber"
+                                : "red"
+                          }
+                        />
+                        <span className="font-bold text-ink">{u.title}</span>
+                        <span
+                          className={`text-[10px] font-extrabold uppercase tracking-[0.12em] ${unlockBadgeClass(u.status)}`}
+                        >
+                          {u.status}
+                        </span>
+                      </div>
+                      <p className="mt-1.5 text-mist">{u.whatYouGet}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <InsightCharts data={data} />
+
+              <div>
+                <p className="mb-2 text-sm font-semibold text-ink">
+                  Quick numbers (live DB · not charts)
+                </p>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <Stat
+                    name="Sessions started"
+                    value={formatInt(data.outcomes.sessionsStarted)}
+                    whatItMeans="People opened the focus timer."
+                    whatToDo="Context only until minutes are trusted."
                   />
-                  <TrendChart
-                    title="Productive days by calendar day"
-                    subtitle="How many user-days hit 20+ real minutes"
-                    data={data.outcomes.series.padDaily}
-                    kind="bar"
-                    valueLabel="Days"
+                  <Stat
+                    name="Trusted study minutes"
+                    value={formatInt(Math.round(data.outcomes.totalEfm))}
+                    whatItMeans={`${formatInt(data.outcomes.validEfmSessions)} usable sessions.`}
+                    whatToDo="Should jump after duration logging is fixed."
+                  />
+                  <Stat
+                    name="Prism tagged sessions"
+                    value={formatInt(data.outcomes.prismOnSessions)}
+                    whatItMeans={`of ${formatInt(data.outcomes.sessionsStarted)} started.`}
+                    whatToDo="Need tags + minutes before Prism-on charts fill."
+                  />
+                  <Stat
+                    name="Unique studiers"
+                    value={formatInt(data.outcomes.more.uniqueStudiers)}
+                    whatItMeans={`${formatInt(data.outcomes.more.multiSessionUsers)} repeats.`}
+                    whatToDo="Habit base for Prism impact later."
+                  />
+                  <Stat
+                    name="Tasks completed"
+                    value={formatInt(data.outcomes.more.tasksCompletedWindow)}
+                    whatItMeans="Aqademiq output in the same window."
+                    whatToDo="Pair with focus minutes once clean."
+                  />
+                  <Stat
+                    name="Mood check-ins"
+                    value={formatInt(data.outcomes.more.moodCheckins)}
+                    whatItMeans={`Avg score ${data.outcomes.more.meanMoodScore ?? "—"}.`}
+                    whatToDo="Soft signal next to Prism-on days later."
                   />
                 </div>
               </div>
